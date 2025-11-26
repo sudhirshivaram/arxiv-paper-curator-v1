@@ -12,7 +12,8 @@ def get_cached_services() -> Tuple[Any, Any, Any, Any, Any]:
     """Get cached service instances using lru_cache for automatic memoization.
     
     IMPORTANT: Imports are done INSIDE this function to avoid loading heavy
-    dependencies (PyTorch, Docling, etc.) at module import time.
+    dependencies (PyTorch, Docling, etc.) at module import time, which would
+    cause Airflow DAG import timeouts.
     """
     # Import heavy dependencies only when function is called
     from src.db.factory import make_database
@@ -23,11 +24,10 @@ def get_cached_services() -> Tuple[Any, Any, Any, Any, Any]:
     
     logger.info("Initializing cached services (first call only)")
     
-    # Create in correct order - dependencies BEFORE they're used!
     database = make_database()
     arxiv_client = make_arxiv_client()
-    pdf_parser = make_pdf_parser_service()  # ← CREATE IT FIRST
-    metadata_fetcher = make_metadata_fetcher(arxiv_client, pdf_parser)  # ← THEN USE IT
+    metadata_fetcher = make_metadata_fetcher()
     opensearch_client = make_opensearch_client()
+    pdf_parser = make_pdf_parser_service()
     
     return arxiv_client, pdf_parser, database, metadata_fetcher, opensearch_client

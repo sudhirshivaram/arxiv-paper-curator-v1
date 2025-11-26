@@ -1,3 +1,10 @@
+cd ~/arxiv-paper-curator/airflow/dags/arxiv_ingestion
+
+# Backup
+cp indexing.py indexing.py.backup
+
+# Create fixed version
+cat > indexing.py << 'EOF'
 import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
@@ -128,3 +135,16 @@ def verify_hybrid_index(**context):
     except Exception as e:
         logger.error(f"Failed to verify hybrid index: {e}")
         raise
+EOF
+
+echo "✓ Fixed indexing.py"
+
+# Restart Airflow
+cd ~/arxiv-paper-curator
+docker compose restart airflow
+
+echo "Waiting 45 seconds for restart..."
+sleep 45
+
+echo "Checking DAG status..."
+docker compose logs airflow 2>&1 | grep -E "arxiv_paper_ingestion.*success|Successfully.*arxiv_paper_ingestion" | tail -3

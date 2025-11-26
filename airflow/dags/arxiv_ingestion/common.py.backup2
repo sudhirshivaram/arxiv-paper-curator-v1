@@ -23,11 +23,10 @@ def get_cached_services() -> Tuple[Any, Any, Any, Any, Any]:
     
     logger.info("Initializing cached services (first call only)")
     
-    # Create in correct order - dependencies BEFORE they're used!
     database = make_database()
     arxiv_client = make_arxiv_client()
-    pdf_parser = make_pdf_parser_service()  # ← CREATE IT FIRST
-    metadata_fetcher = make_metadata_fetcher(arxiv_client, pdf_parser)  # ← THEN USE IT
+    metadata_fetcher = make_metadata_fetcher()
     opensearch_client = make_opensearch_client()
+    pdf_parser = make_pdf_parser_service()
     
     return arxiv_client, pdf_parser, database, metadata_fetcher, opensearch_client

@@ -1,0 +1,8 @@
+https://github.com/jamwithai/arxiv-paper-curator/blob/main/notebooks/week1/week1_setup.ipynb
+
+https://github.com/jamwithai/arxiv-paper-curator
+
+# All URLs
+https://github.com/jamwithai/arxiv-paper-curator
+
+https://github.com/jamwithai/arxiv-paper-curator/blob/main/notebooks/week1/week1_setup.ipynb
