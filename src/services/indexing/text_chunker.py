@@ -87,8 +87,14 @@ class TextChunker:
                 logger.warning(f"Section-based chunking failed for {arxiv_id}: {e}")
 
         # Fallback to traditional word-based chunking
+        # If no full_text, use title + abstract as content
+        content = full_text
+        if not content or not content.strip():
+            logger.info(f"No full_text for {arxiv_id}, using title + abstract")
+            content = f"{title}\n\n{abstract}" if abstract else title
+
         logger.info(f"Using traditional word-based chunking for {arxiv_id}")
-        return self.chunk_text(full_text, arxiv_id, paper_id)
+        return self.chunk_text(content, arxiv_id, paper_id)
 
     def chunk_text(self, text: str, arxiv_id: str, paper_id: str) -> List[TextChunk]:
         """Chunk text into overlapping segments.

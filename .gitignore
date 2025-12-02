@@ -178,5 +178,19 @@ data/
 test_output/
 test_data/
 
+# Railway and deployment files with secrets
+.env.local
+.env.railway
+.env.railway.ingest
+railway_backup.sql
+railway_export.sql
 
+# Backup files
+backups/
+backup_data.sh
+restore_data.sh
+
+# Deployment scripts (keep example files)
+deploy.sh
+deploy-to-railway.sh
 

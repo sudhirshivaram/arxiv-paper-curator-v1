@@ -1,0 +1,60 @@
+# Render.com Blueprint for arXiv Paper Curator
+# This configuration deploys your RAG system to Render.com's free tier
+
+services:
+  # Main API Service
+  - type: web
+    name: arxiv-rag-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    region: oregon
+    plan: free
+    branch: main
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: false
+      - key: POSTGRES_DATABASE_URL
+        fromDatabase:
+          name: arxiv-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: arxiv-redis
+          property: connectionString
+      - key: OPENSEARCH_HOST
+        value: http://localhost:9200
+      - key: OPENSEARCH__HOST
+        value: http://localhost:9200
+      - key: OLLAMA_HOST
+        value: http://localhost:11434
+      - key: LLM_PROVIDER
+        value: openai
+      - key: OPENAI_API_KEY
+        sync: false  # You'll add this manually
+      - key: JINA_API_KEY
+        sync: false  # You'll add this manually
+      - key: OPENAI_MODEL
+        value: gpt-4o-mini
+      - key: ARXIV__MAX_RESULTS
+        value: 10
+      - key: CHUNKING__CHUNK_SIZE
+        value: 600
+      - key: CHUNKING__OVERLAP_SIZE
+        value: 100
+
+# PostgreSQL Database (Free tier: 1GB storage)
+databases:
+  - name: arxiv-postgres
+    databaseName: rag_db
+    user: rag_user
+    region: oregon
+    plan: free
+    ipAllowList: []
+
+# Redis (Free tier: 25MB)
+# Note: Render free Redis is limited. For production, upgrade to paid tier.
+# For now, we'll make Redis optional in the code.

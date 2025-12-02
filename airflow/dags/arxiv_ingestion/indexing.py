@@ -62,21 +62,20 @@ def index_papers_hybrid(**context):
             if fetch_results and fetch_results.get("papers_stored", 0) > 0:
                 from sqlalchemy import desc
 
-                # Only index papers that have raw_text (successfully parsed PDFs)
+                # Index all papers (with or without raw_text)
+                # Papers without PDFs will be indexed using title + abstract
                 papers = (
                     session.query(Paper)
-                    .filter(Paper.raw_text.isnot(None))
                     .order_by(desc(Paper.created_at))
                     .limit(fetch_results["papers_stored"])
                     .all()
                 )
             else:
                 cutoff_date = datetime.now(timezone.utc) - timedelta(days=1)
-                # Only index papers that have raw_text
+                # Index all recently created papers
                 papers = (
                     session.query(Paper)
                     .filter(Paper.created_at >= cutoff_date)
-                    .filter(Paper.raw_text.isnot(None))
                     .all()
                 )
 

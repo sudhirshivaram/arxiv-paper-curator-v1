@@ -19,7 +19,7 @@ services:
       retries: 3
       start_period: 40s
     env_file:
-      - .env
+      - .env.local
     environment:
       # Container-specific overrides
       - OPENSEARCH_HOST=http://opensearch:9200
@@ -96,7 +96,7 @@ services:
       - rag-network
 
   airflow:
-    build: 
+    build:
       context: ./airflow
       dockerfile: Dockerfile
     container_name: rag-airflow
@@ -124,6 +124,8 @@ services:
     ports:
       - "8080:8080"
     # Command handled by entrypoint.sh
+    mem_limit: 8g
+    memswap_limit: 8g
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 30s
