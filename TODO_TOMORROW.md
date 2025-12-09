@@ -70,9 +70,41 @@
 
 ---
 
-## 🚀 Optional Enhancements (If Time Permits)
+## 🚀 Optional Enhancements (After End-to-End Testing)
 
-### 4. Index Full Paper Content
+### 4. Deploy Airflow for Automated Ingestion
+**Goal**: Automated daily paper ingestion pipeline
+
+**Why this is important**:
+- Keep paper database fresh with daily arXiv updates
+- Fully automated pipeline (no manual intervention)
+- Production-grade workflow orchestration
+
+**Requirements**:
+- Railway upgrade to $20/month Developer plan (Airflow needs more resources)
+- Airflow DAG configuration for daily runs
+- Monitoring and alerting setup
+
+**Steps**:
+- [ ] Upgrade Railway plan to Developer ($20/month)
+- [ ] Deploy Airflow service to Railway
+- [ ] Configure daily ingestion DAG
+- [ ] Set up error notifications
+- [ ] Test automated pipeline
+
+**Benefits**:
+- Hands-off daily paper updates
+- Scalable to 1000+ papers
+- Production workflow automation
+- Complete end-to-end automation
+
+**Estimated time**: 4-6 hours
+
+**Note**: Only proceed AFTER confirming current system works end-to-end!
+
+---
+
+### 5. Index Full Paper Content
 **Goal**: Improve answer quality with full PDF content
 
 **Current**: 100 papers, title + abstract only (100 chunks)
