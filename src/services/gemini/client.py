@@ -1,10 +1,10 @@
-"""OpenAI client for LLM generation."""
+"""Google Gemini client for LLM generation."""
 
 import json
 import logging
 from typing import Any, Dict, List, Optional
 
-from openai import AsyncOpenAI
+import google.generativeai as genai
 from src.config import Settings
 from src.exceptions import OllamaException  # Reuse for now
 from src.services.ollama.prompts import RAGPromptBuilder, ResponseParser
@@ -12,39 +12,43 @@ from src.services.ollama.prompts import RAGPromptBuilder, ResponseParser
 logger = logging.getLogger(__name__)
 
 
-class OpenAIClient:
-    """Client for interacting with OpenAI API."""
+class GeminiClient:
+    """Client for interacting with Google Gemini API."""
 
     def __init__(self, settings: Settings):
-        """Initialize OpenAI client with settings."""
-        self.api_key = settings.openai_api_key
-        self.model = settings.openai_model
-        self.max_tokens = settings.openai_max_tokens
-        self.client = AsyncOpenAI(api_key=self.api_key)
+        """Initialize Gemini client with settings."""
+        self.api_key = settings.gemini_api_key
+        self.model_name = settings.gemini_model
+        self.max_tokens = settings.gemini_max_tokens
+
+        # Configure Gemini SDK
+        genai.configure(api_key=self.api_key)
+        self.model = genai.GenerativeModel(self.model_name)
+
         self.prompt_builder = RAGPromptBuilder()
         self.response_parser = ResponseParser()
-        logger.info(f"OpenAI client initialized with model: {self.model}")
+        logger.info(f"Gemini client initialized with model: {self.model_name}")
 
     async def health_check(self) -> Dict[str, Any]:
         """
-        Check if OpenAI API is accessible.
+        Check if Gemini API is accessible.
 
         Returns:
             Dictionary with health status information
         """
         try:
-            # Try to list models as health check
-            models = await self.client.models.list()
+            # Try a simple generation as health check
+            response = self.model.generate_content("Hello")
             return {
                 "status": "healthy",
-                "message": "OpenAI API is accessible",
-                "model": self.model,
+                "message": "Gemini API is accessible",
+                "model": self.model_name,
             }
         except Exception as e:
-            logger.error(f"OpenAI health check failed: {e}")
+            logger.error(f"Gemini health check failed: {e}")
             return {
                 "status": "unhealthy",
-                "message": f"OpenAI API error: {str(e)}",
+                "message": f"Gemini API error: {str(e)}",
             }
 
     async def list_models(self) -> List[Dict[str, Any]]:
@@ -54,11 +58,11 @@ class OpenAIClient:
         Returns:
             List with configured model
         """
-        return [{"name": self.model}]
+        return [{"name": self.model_name}]
 
     async def generate(self, model: str, prompt: str, stream: bool = False, **kwargs) -> Optional[Dict[str, Any]]:
         """
-        Generate text using OpenAI API.
+        Generate text using Gemini API.
 
         Args:
             model: Model name to use (uses configured model if not specified)
@@ -70,38 +74,39 @@ class OpenAIClient:
             Response dictionary compatible with Ollama format
         """
         try:
-            model_to_use = model if model and not model.startswith("llama") else self.model
-
-            # Extract OpenAI-compatible parameters
+            # Extract Gemini-compatible parameters
             temperature = kwargs.get("temperature", 0.7)
             top_p = kwargs.get("top_p", 0.9)
 
-            logger.info(f"Sending request to OpenAI: model={model_to_use}, temperature={temperature}")
+            logger.info(f"Sending request to Gemini: model={self.model_name}, temperature={temperature}")
 
-            response = await self.client.chat.completions.create(
-                model=model_to_use,
-                messages=[{"role": "user", "content": prompt}],
+            # Configure generation parameters
+            generation_config = genai.types.GenerationConfig(
                 temperature=temperature,
                 top_p=top_p,
-                max_tokens=self.max_tokens,
-                stream=False,
+                max_output_tokens=self.max_tokens,
+            )
+
+            response = self.model.generate_content(
+                prompt,
+                generation_config=generation_config
             )
 
             # Convert to Ollama-compatible format
             return {
-                "model": model_to_use,
-                "response": response.choices[0].message.content,
+                "model": self.model_name,
+                "response": response.text,
                 "done": True,
                 "context": [],
                 "total_duration": 0,
                 "load_duration": 0,
-                "prompt_eval_count": response.usage.prompt_tokens,
-                "eval_count": response.usage.completion_tokens,
+                "prompt_eval_count": 0,  # Gemini doesn't provide token counts in free tier
+                "eval_count": 0,
             }
 
         except Exception as e:
-            logger.error(f"OpenAI generation error: {e}")
-            raise OllamaException(f"Error generating with OpenAI: {e}")
+            logger.error(f"Gemini generation error: {e}")
+            raise OllamaException(f"Error generating with Gemini: {e}")
 
     async def generate_stream(self, model: str, prompt: str, **kwargs):
         """
@@ -116,47 +121,48 @@ class OpenAIClient:
             JSON chunks in Ollama-compatible format
         """
         try:
-            model_to_use = model if model and not model.startswith("llama") else self.model
-
             temperature = kwargs.get("temperature", 0.7)
             top_p = kwargs.get("top_p", 0.9)
 
-            logger.info(f"Starting streaming generation with OpenAI: model={model_to_use}")
+            logger.info(f"Starting streaming generation with Gemini: model={self.model_name}")
 
-            stream = await self.client.chat.completions.create(
-                model=model_to_use,
-                messages=[{"role": "user", "content": prompt}],
+            generation_config = genai.types.GenerationConfig(
                 temperature=temperature,
                 top_p=top_p,
-                max_tokens=self.max_tokens,
-                stream=True,
+                max_output_tokens=self.max_tokens,
             )
 
-            async for chunk in stream:
-                if chunk.choices[0].delta.content:
+            response = self.model.generate_content(
+                prompt,
+                generation_config=generation_config,
+                stream=True
+            )
+
+            for chunk in response:
+                if chunk.text:
                     # Convert to Ollama-compatible format
                     yield {
-                        "model": model_to_use,
-                        "response": chunk.choices[0].delta.content,
+                        "model": self.model_name,
+                        "response": chunk.text,
                         "done": False,
                     }
 
             # Final chunk
             yield {
-                "model": model_to_use,
+                "model": self.model_name,
                 "response": "",
                 "done": True,
             }
 
         except Exception as e:
-            logger.error(f"OpenAI streaming error: {e}")
+            logger.error(f"Gemini streaming error: {e}")
             raise OllamaException(f"Error in streaming generation: {e}")
 
     async def generate_rag_answer(
         self,
         query: str,
         chunks: List[Dict[str, Any]],
-        model: str = "gpt-4o-mini",
+        model: str = "gemini-1.5-flash",
         use_structured_output: bool = False,
         document_type: str = "arxiv",
     ) -> Dict[str, Any]:
@@ -168,64 +174,85 @@ class OpenAIClient:
             chunks: Retrieved document chunks with metadata
             model: Model to use for generation
             use_structured_output: Whether to use structured output (not implemented)
+            document_type: Type of documents (arxiv or financial)
 
         Returns:
             Dictionary with answer, sources, confidence, and citations
         """
         try:
-            # Use the same prompt builder as Ollama
+            # Use the same prompt builder as Ollama/OpenAI
             prompt = self.prompt_builder.create_rag_prompt(query, chunks, document_type)
 
-            model_to_use = model if model and not model.startswith("llama") else self.model
+            logger.info(f"Generating RAG answer with Gemini model: {self.model_name}")
 
-            logger.info(f"Generating RAG answer with OpenAI model: {model_to_use}")
-
-            response = await self.client.chat.completions.create(
-                model=model_to_use,
-                messages=[{"role": "user", "content": prompt}],
+            generation_config = genai.types.GenerationConfig(
                 temperature=0.7,
                 top_p=0.9,
-                max_tokens=self.max_tokens,
+                max_output_tokens=self.max_tokens,
             )
 
-            answer_text = response.choices[0].message.content
+            response = self.model.generate_content(
+                prompt,
+                generation_config=generation_config
+            )
 
-            # Build response structure manually (same as Ollama non-structured mode)
-            sources = []
-            seen_urls = set()
-            for chunk in chunks:
-                arxiv_id = chunk.get("arxiv_id")
-                if arxiv_id:
-                    arxiv_id_clean = arxiv_id.split("v")[0] if "v" in arxiv_id else arxiv_id
-                    pdf_url = f"https://arxiv.org/pdf/{arxiv_id_clean}.pdf"
-                    if pdf_url not in seen_urls:
-                        sources.append(pdf_url)
-                        seen_urls.add(pdf_url)
+            answer_text = response.text
 
-            citations = list(set(chunk.get("arxiv_id") for chunk in chunks if chunk.get("arxiv_id")))
+            # Build response structure for financial documents
+            if document_type == "financial":
+                sources = []
+                seen_urls = set()
+                for chunk in chunks:
+                    source_url = chunk.get("source_url")
+                    if source_url and source_url not in seen_urls:
+                        sources.append(source_url)
+                        seen_urls.add(source_url)
+
+                citations = []
+                for chunk in chunks:
+                    company = chunk.get("company_name", "")
+                    filing = chunk.get("filing_type", "")
+                    if company and filing:
+                        citation = f"{company} {filing}"
+                        if citation not in citations:
+                            citations.append(citation)
+            else:
+                # Build response structure for arXiv papers
+                sources = []
+                seen_urls = set()
+                for chunk in chunks:
+                    arxiv_id = chunk.get("arxiv_id")
+                    if arxiv_id:
+                        arxiv_id_clean = arxiv_id.split("v")[0] if "v" in arxiv_id else arxiv_id
+                        pdf_url = f"https://arxiv.org/pdf/{arxiv_id_clean}.pdf"
+                        if pdf_url not in seen_urls:
+                            sources.append(pdf_url)
+                            seen_urls.add(pdf_url)
+
+                citations = list(set(chunk.get("arxiv_id") for chunk in chunks if chunk.get("arxiv_id")))
 
             return {
                 "answer": answer_text,
                 "sources": sources,
                 "confidence": "medium",
                 "citations": citations[:5],
-                "model_used": model_to_use,
+                "model_used": self.model_name,
                 "tokens_used": {
-                    "prompt": response.usage.prompt_tokens,
-                    "completion": response.usage.completion_tokens,
-                    "total": response.usage.total_tokens,
+                    "prompt": 0,  # Gemini free tier doesn't provide token counts
+                    "completion": 0,
+                    "total": 0,
                 },
             }
 
         except Exception as e:
-            logger.error(f"Error generating RAG answer with OpenAI: {e}")
+            logger.error(f"Error generating RAG answer with Gemini: {e}")
             raise OllamaException(f"RAG generation failed: {e}")
 
     async def generate_rag_answer_stream(
         self,
         query: str,
         chunks: List[Dict[str, Any]],
-        model: str = "gpt-4o-mini",
+        model: str = "gemini-1.5-flash",
         document_type: str = "arxiv",
     ):
         """
@@ -235,6 +262,7 @@ class OpenAIClient:
             query: User's question
             chunks: Retrieved document chunks with metadata
             model: Model to use for generation
+            document_type: Type of documents (arxiv or financial)
 
         Yields:
             Streaming response chunks with partial answers
@@ -253,5 +281,5 @@ class OpenAIClient:
                 yield chunk
 
         except Exception as e:
-            logger.error(f"Error generating streaming RAG answer with OpenAI: {e}")
+            logger.error(f"Error generating streaming RAG answer with Gemini: {e}")
             raise OllamaException(f"Failed to generate streaming RAG answer: {e}")

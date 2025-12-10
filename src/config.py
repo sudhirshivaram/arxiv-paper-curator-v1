@@ -172,18 +172,23 @@ class Settings(BaseConfigSettings):
     postgres_pool_size: int = 20
     postgres_max_overflow: int = 0
 
-    # LLM provider selection: "ollama" or "openai"
-    llm_provider: Literal["ollama", "openai"] = "ollama"
+    # LLM provider selection: "ollama", "openai", or "gemini"
+    llm_provider: Literal["ollama", "openai", "gemini"] = "ollama"
 
     # Ollama configuration
     ollama_host: str = "http://localhost:11434"
-    ollama_model: str = "llama3.2:1b"
+    ollama_model: str = "qwen2.5:7b"
     ollama_timeout: int = 300
 
     # OpenAI configuration
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
     openai_max_tokens: int = 2000
+
+    # Google Gemini configuration
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-1.5-flash"
+    gemini_max_tokens: int = 2000
 
     # Jina AI embeddings configuration
     jina: JinaSettings = Field(default_factory=JinaSettings)

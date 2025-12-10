@@ -158,6 +158,7 @@ class OllamaClient:
         chunks: List[Dict[str, Any]],
         model: str = "llama3.2",
         use_structured_output: bool = False,
+        document_type: str = "arxiv",
     ) -> Dict[str, Any]:
         """
         Generate a RAG answer using retrieved chunks.
@@ -167,6 +168,7 @@ class OllamaClient:
             chunks: Retrieved document chunks with metadata
             model: Model to use for generation
             use_structured_output: Whether to use Ollama's structured output feature
+            document_type: Type of documents ("arxiv" or "financial")
 
         Returns:
             Dictionary with answer, sources, confidence, and citations
@@ -174,7 +176,9 @@ class OllamaClient:
         try:
             if use_structured_output:
                 # Use structured output with Pydantic model
-                prompt_data = self.prompt_builder.create_structured_prompt(query, chunks)
+                prompt_data = self.prompt_builder.create_structured_prompt(
+                    query, chunks, document_type
+                )
 
                 # Generate with structured format
                 response = await self.generate(
@@ -186,7 +190,9 @@ class OllamaClient:
                 )
             else:
                 # Fallback to plain text mode
-                prompt = self.prompt_builder.create_rag_prompt(query, chunks)
+                prompt = self.prompt_builder.create_rag_prompt(
+                    query, chunks, document_type
+                )
 
                 # Generate without format restrictions
                 response = await self.generate(
@@ -238,6 +244,7 @@ class OllamaClient:
         query: str,
         chunks: List[Dict[str, Any]],
         model: str = "llama3.2",
+        document_type: str = "arxiv",
     ):
         """
         Generate a streaming RAG answer using retrieved chunks.
@@ -246,13 +253,14 @@ class OllamaClient:
             query: User's question
             chunks: Retrieved document chunks with metadata
             model: Model to use for generation
+            document_type: Type of documents ("arxiv" or "financial")
 
         Yields:
             Streaming response chunks with partial answers
         """
         try:
             # Create prompt for streaming (simpler than structured)
-            prompt = self.prompt_builder.create_rag_prompt(query, chunks)
+            prompt = self.prompt_builder.create_rag_prompt(query, chunks, document_type)
 
             # Stream the response
             async for chunk in self.generate_stream(

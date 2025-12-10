@@ -15,62 +15,110 @@ class RAGPromptBuilder:
         self.prompts_dir = Path(__file__).parent / "prompts"
         self.system_prompt = self._load_system_prompt()
 
-    def _load_system_prompt(self) -> str:
+    def _load_system_prompt(self, document_type: str = "arxiv") -> str:
         """Load the system prompt from the text file.
+
+        Args:
+            document_type: Type of documents ("arxiv" or "financial")
 
         Returns:
             System prompt string
         """
-        prompt_file = self.prompts_dir / "rag_system.txt"
-        if not prompt_file.exists():
-            # Fallback to default prompt if file doesn't exist
-            return (
-                "You are an AI assistant specialized in answering questions about "
-                "academic papers from arXiv. Base your answer STRICTLY on the provided "
-                "paper excerpts."
-            )
+        if document_type == "financial":
+            prompt_file = self.prompts_dir / "rag_system_financial.txt"
+            if not prompt_file.exists():
+                # Fallback to default financial prompt
+                return (
+                    "You are an AI assistant specialized in answering questions about "
+                    "SEC financial filings (10-K, 10-Q reports). Base your answer STRICTLY on "
+                    "the provided filing excerpts. Provide factual, data-driven responses."
+                )
+        else:
+            prompt_file = self.prompts_dir / "rag_system.txt"
+            if not prompt_file.exists():
+                # Fallback to default arXiv prompt
+                return (
+                    "You are an AI assistant specialized in answering questions about "
+                    "academic papers from arXiv. Base your answer STRICTLY on the provided "
+                    "paper excerpts."
+                )
         return prompt_file.read_text().strip()
 
-    def create_rag_prompt(self, query: str, chunks: List[Dict[str, Any]]) -> str:
+    def create_rag_prompt(
+        self,
+        query: str,
+        chunks: List[Dict[str, Any]],
+        document_type: str = "arxiv"
+    ) -> str:
         """Create a RAG prompt with query and retrieved chunks.
 
         Args:
             query: User's question
             chunks: List of retrieved chunks with metadata from OpenSearch
+            document_type: Type of documents ("arxiv" or "financial")
 
         Returns:
             Formatted prompt string
         """
-        prompt = f"{self.system_prompt}\n\n"
-        prompt += "### Context from Papers:\n\n"
+        system_prompt = self._load_system_prompt(document_type)
+        prompt = f"{system_prompt}\n\n"
 
-        for i, chunk in enumerate(chunks, 1):
-            # Get the actual chunk text
-            chunk_text = chunk.get("chunk_text", chunk.get("content", ""))
-            arxiv_id = chunk.get("arxiv_id", "")
+        if document_type == "financial":
+            prompt += "### Context from SEC Filings:\n\n"
 
-            # Only include minimal metadata - just arxiv_id for citation
-            prompt += f"[{i}. arXiv:{arxiv_id}]\n"
-            prompt += f"{chunk_text}\n\n"
+            for i, chunk in enumerate(chunks, 1):
+                chunk_text = chunk.get("chunk_text", chunk.get("content", ""))
+                ticker = chunk.get("ticker", "")
+                company_name = chunk.get("company_name", "")
+                doc_type = chunk.get("document_type", "")
+                filing_date = chunk.get("filing_date", "")
 
-        prompt += f"### Question:\n{query}\n\n"
-        prompt += (
-            "### Answer:\nProvide a natural, conversational response (not JSON) and cite sources using [arXiv:id] format.\n\n"
-        )
+                # Include financial-specific metadata
+                prompt += f"[{i}. {ticker} - {company_name} {doc_type} filed {filing_date}]\n"
+                prompt += f"{chunk_text}\n\n"
+
+            prompt += f"### Question:\n{query}\n\n"
+            prompt += (
+                "### Answer:\nProvide a factual, data-driven response citing specific "
+                "companies and filing types (e.g., [AAPL 10-K]).\n\n"
+            )
+
+        else:  # arxiv
+            prompt += "### Context from Papers:\n\n"
+
+            for i, chunk in enumerate(chunks, 1):
+                chunk_text = chunk.get("chunk_text", chunk.get("content", ""))
+                arxiv_id = chunk.get("arxiv_id", "")
+
+                # Only include minimal metadata - just arxiv_id for citation
+                prompt += f"[{i}. arXiv:{arxiv_id}]\n"
+                prompt += f"{chunk_text}\n\n"
+
+            prompt += f"### Question:\n{query}\n\n"
+            prompt += (
+                "### Answer:\nProvide a natural, conversational response (not JSON) "
+                "and cite sources using [arXiv:id] format.\n\n"
+            )
 
         return prompt
 
-    def create_structured_prompt(self, query: str, chunks: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def create_structured_prompt(
+        self,
+        query: str,
+        chunks: List[Dict[str, Any]],
+        document_type: str = "arxiv"
+    ) -> Dict[str, Any]:
         """Create a prompt for Ollama with structured output format.
 
         Args:
             query: User's question
             chunks: List of retrieved chunks
+            document_type: Type of documents ("arxiv" or "financial")
 
         Returns:
             Dictionary with prompt and format schema for Ollama
         """
-        prompt_text = self.create_rag_prompt(query, chunks)
+        prompt_text = self.create_rag_prompt(query, chunks, document_type)
 
         # Return prompt with Pydantic model schema for structured output
         return {

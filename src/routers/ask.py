@@ -1,13 +1,22 @@
 import json
 import logging
 import time
-from typing import Dict, List
+from typing import Dict, List, Union
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
-from src.dependencies import CacheDep, EmbeddingsDep, LangfuseDep, LLMDep, OpenSearchDep
+from src.dependencies import (
+    CacheDep,
+    EmbeddingsDep,
+    FinancialOpenSearchDep,
+    LangfuseDep,
+    LLMDep,
+    OpenSearchDep,
+)
 from src.schemas.api.ask import AskRequest, AskResponse
 from src.services.langfuse.tracer import RAGTracer
+from src.services.opensearch.client import OpenSearchClient
+from src.services.opensearch.financial_client import FinancialOpenSearchClient
 
 logger = logging.getLogger(__name__)
 
@@ -16,14 +25,14 @@ ask_router = APIRouter(tags=["ask"])
 stream_router = APIRouter(tags=["stream"])
 
 
-async def _prepare_chunks_and_sources(
+async def _prepare_chunks_and_sources_arxiv(
     request: AskRequest,
-    opensearch_client,
+    opensearch_client: OpenSearchClient,
     embeddings_service,
     rag_tracer: RAGTracer,
     trace=None,
 ) -> tuple[List[Dict], List[str], List[str]]:
-    """Retrieve and prepare chunks for RAG with clean tracing."""
+    """Retrieve and prepare chunks for arXiv papers."""
 
     # Handle embeddings for hybrid search
     query_embedding = None
@@ -76,16 +85,99 @@ async def _prepare_chunks_and_sources(
     return chunks, list(sources_set), arxiv_ids
 
 
+async def _prepare_chunks_and_sources_financial(
+    request: AskRequest,
+    financial_opensearch_client: FinancialOpenSearchClient,
+    embeddings_service,
+    rag_tracer: RAGTracer,
+    trace=None,
+) -> tuple[List[Dict], List[str], List[str]]:
+    """Retrieve and prepare chunks for financial documents."""
+
+    # Handle embeddings for hybrid search
+    query_embedding = None
+    if request.use_hybrid:
+        with rag_tracer.trace_embedding(trace, request.query) as embedding_span:
+            try:
+                query_embedding = await embeddings_service.embed_query(request.query)
+                logger.info("Generated query embedding for hybrid search")
+            except Exception as e:
+                logger.warning(f"Failed to generate embeddings, falling back to BM25: {e}")
+                if embedding_span:
+                    rag_tracer.tracer.update_span(embedding_span, output={"success": False, "error": str(e)})
+
+    # Search with tracing
+    with rag_tracer.trace_search(trace, request.query, request.top_k) as search_span:
+        if request.use_hybrid and query_embedding is not None:
+            search_results = financial_opensearch_client.search_chunks_hybrid(
+                query=request.query,
+                query_embedding=query_embedding,
+                size=request.top_k,
+                ticker=request.ticker,
+                document_types=request.filing_types,
+                min_score=0.0,
+            )
+        else:
+            search_results = financial_opensearch_client.search_chunks_bm25(
+                query=request.query,
+                size=request.top_k,
+                ticker=request.ticker,
+                document_types=request.filing_types,
+            )
+
+        # Extract essential data for LLM
+        chunks = []
+        document_ids = []
+        sources_set = set()
+
+        for hit in search_results.get("hits", []):
+            document_id = hit.get("document_id", "")
+            ticker = hit.get("ticker_symbol", "")
+            company_name = hit.get("company_name", "")
+            doc_type = hit.get("document_type", "")
+            filing_date = hit.get("filing_date", "")
+            accession = hit.get("accession_number", "")
+
+            # Minimal chunk data for LLM (financial-specific)
+            chunks.append(
+                {
+                    "document_id": document_id,
+                    "ticker": ticker,
+                    "company_name": company_name,
+                    "document_type": doc_type,
+                    "filing_date": filing_date,
+                    "chunk_text": hit.get("chunk_text", ""),
+                }
+            )
+
+            if document_id:
+                document_ids.append(document_id)
+
+            # Build SEC EDGAR source URL
+            if accession:
+                # SEC EDGAR URL format
+                accession_clean = accession.replace("-", "")
+                sources_set.add(
+                    f"https://www.sec.gov/cgi-bin/viewer?action=view&cik=&accession_number={accession}&xbrl_type=v"
+                )
+
+        # End search span with essential metadata
+        rag_tracer.end_search(search_span, chunks, document_ids, search_results.get("total", 0))
+
+    return chunks, list(sources_set), document_ids
+
+
 @ask_router.post("/ask", response_model=AskResponse)
 async def ask_question(
     request: AskRequest,
     opensearch_client: OpenSearchDep,
+    financial_opensearch_client: FinancialOpenSearchDep,
     embeddings_service: EmbeddingsDep,
     llm_client: LLMDep,
     langfuse_tracer: LangfuseDep,
     cache_client: CacheDep,
 ) -> AskResponse:
-    """Clean RAG endpoint with essential tracing and exact match caching."""
+    """Clean RAG endpoint with support for both arXiv and financial documents."""
 
     rag_tracer = RAGTracer(langfuse_tracer)
     start_time = time.time()
@@ -103,18 +195,25 @@ async def ask_question(
                 except Exception as e:
                     logger.warning(f"Cache check failed, proceeding with normal flow: {e}")
 
-            # Generate query embedding for hybrid search if needed
-            query_embedding = None
-
-            # Retrieve chunks
-            chunks, sources, _ = await _prepare_chunks_and_sources(
-                request, opensearch_client, embeddings_service, rag_tracer, trace
-            )
+            # Route to appropriate search based on document_type
+            if request.document_type == "financial":
+                chunks, sources, _ = await _prepare_chunks_and_sources_financial(
+                    request, financial_opensearch_client, embeddings_service, rag_tracer, trace
+                )
+            else:  # "arxiv"
+                chunks, sources, _ = await _prepare_chunks_and_sources_arxiv(
+                    request, opensearch_client, embeddings_service, rag_tracer, trace
+                )
 
             if not chunks:
+                no_results_message = (
+                    "I couldn't find any relevant financial documents to answer your question."
+                    if request.document_type == "financial"
+                    else "I couldn't find any relevant papers to answer your question."
+                )
                 response = AskResponse(
                     query=request.query,
-                    answer="I couldn't find any relevant information in the papers to answer your question.",
+                    answer=no_results_message,
                     sources=[],
                     chunks_used=0,
                     search_mode="bm25" if not request.use_hybrid else "hybrid",
@@ -129,16 +228,29 @@ async def ask_question(
                 prompt_builder = RAGPromptBuilder()
 
                 try:
-                    prompt_data = prompt_builder.create_structured_prompt(request.query, chunks)
+                    prompt_data = prompt_builder.create_structured_prompt(
+                        request.query,
+                        chunks,
+                        document_type=request.document_type
+                    )
                     final_prompt = prompt_data["prompt"]
                 except Exception:
-                    final_prompt = prompt_builder.create_rag_prompt(request.query, chunks)
+                    final_prompt = prompt_builder.create_rag_prompt(
+                        request.query,
+                        chunks,
+                        document_type=request.document_type
+                    )
 
                 rag_tracer.end_prompt(prompt_span, final_prompt)
 
             # Generate answer
             with rag_tracer.trace_generation(trace, request.model, final_prompt) as gen_span:
-                rag_response = await llm_client.generate_rag_answer(query=request.query, chunks=chunks, model=request.model)
+                rag_response = await llm_client.generate_rag_answer(
+                    query=request.query,
+                    chunks=chunks,
+                    model=request.model,
+                    document_type=request.document_type
+                )
                 answer = rag_response.get("answer", "Unable to generate answer")
                 rag_tracer.end_generation(gen_span, answer, request.model)
 
@@ -171,12 +283,13 @@ async def ask_question(
 async def ask_question_stream(
     request: AskRequest,
     opensearch_client: OpenSearchDep,
+    financial_opensearch_client: FinancialOpenSearchDep,
     embeddings_service: EmbeddingsDep,
     llm_client: LLMDep,
     langfuse_tracer: LangfuseDep,
     cache_client: CacheDep,
 ) -> StreamingResponse:
-    """Clean streaming RAG endpoint."""
+    """Clean streaming RAG endpoint with support for both document types."""
 
     async def generate_stream():
         rag_tracer = RAGTracer(langfuse_tracer)
@@ -209,13 +322,23 @@ async def ask_question_stream(
                     except Exception as e:
                         logger.warning(f"Cache check failed, proceeding with normal flow: {e}")
 
-                # Retrieve chunks
-                chunks, sources, _ = await _prepare_chunks_and_sources(
-                    request, opensearch_client, embeddings_service, rag_tracer, trace
-                )
+                # Route to appropriate search based on document_type
+                if request.document_type == "financial":
+                    chunks, sources, _ = await _prepare_chunks_and_sources_financial(
+                        request, financial_opensearch_client, embeddings_service, rag_tracer, trace
+                    )
+                else:  # "arxiv"
+                    chunks, sources, _ = await _prepare_chunks_and_sources_arxiv(
+                        request, opensearch_client, embeddings_service, rag_tracer, trace
+                    )
 
                 if not chunks:
-                    yield f"data: {json.dumps({'answer': 'No relevant information found.', 'sources': [], 'done': True})}\n\n"
+                    no_results_message = (
+                        "No relevant financial documents found."
+                        if request.document_type == "financial"
+                        else "No relevant papers found."
+                    )
+                    yield f"data: {json.dumps({'answer': no_results_message, 'sources': [], 'done': True})}\n\n"
                     return
 
                 # Send metadata first
@@ -228,14 +351,21 @@ async def ask_question_stream(
                     from src.services.ollama.prompts import RAGPromptBuilder
 
                     prompt_builder = RAGPromptBuilder()
-                    final_prompt = prompt_builder.create_rag_prompt(request.query, chunks)
+                    final_prompt = prompt_builder.create_rag_prompt(
+                        request.query,
+                        chunks,
+                        document_type=request.document_type
+                    )
                     rag_tracer.end_prompt(prompt_span, final_prompt)
 
                 # Stream generation
                 with rag_tracer.trace_generation(trace, request.model, final_prompt) as gen_span:
                     full_response = ""
                     async for chunk in llm_client.generate_rag_answer_stream(
-                        query=request.query, chunks=chunks, model=request.model
+                        query=request.query,
+                        chunks=chunks,
+                        model=request.model,
+                        document_type=request.document_type
                     ):
                         if chunk.get("response"):
                             text_chunk = chunk["response"]

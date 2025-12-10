@@ -14,7 +14,9 @@ from src.services.embeddings.factory import make_embeddings_service
 from src.services.langfuse.factory import make_langfuse_tracer
 from src.services.ollama.factory import make_ollama_client
 from src.services.openai.factory import make_openai_client
+from src.services.gemini.factory import make_gemini_client
 from src.services.opensearch.factory import make_opensearch_client
+from src.services.opensearch.financial_factory import make_financial_opensearch_client
 from src.services.pdf_parser.factory import make_pdf_parser_service
 
 # Setup logging
@@ -39,27 +41,39 @@ async def lifespan(app: FastAPI):
     app.state.database = database
     logger.info("Database connected")
 
-    # Initialize search service
+    # Initialize search service for arXiv papers
     opensearch_client = make_opensearch_client()
     app.state.opensearch_client = opensearch_client
 
-    # Verify OpenSearch connectivity and create index if needed
+    # Initialize search service for financial documents
+    financial_opensearch_client = make_financial_opensearch_client()
+    app.state.financial_opensearch_client = financial_opensearch_client
+
+    # Verify OpenSearch connectivity and create indices if needed
     if opensearch_client.health_check():
         logger.info("OpenSearch connected successfully")
 
-        # Setup hybrid index (supports all search types)
+        # Setup arXiv hybrid index (supports all search types)
         setup_results = opensearch_client.setup_indices(force=False)
         if setup_results.get("hybrid_index"):
-            logger.info("Hybrid index created")
+            logger.info("arXiv hybrid index created")
         else:
-            logger.info("Hybrid index already exists")
+            logger.info("arXiv hybrid index already exists")
 
-        # Get simple statistics
+        # Setup financial docs index
+        financial_setup_results = financial_opensearch_client.setup_indices(force=False)
+        if financial_setup_results.get("financial_index"):
+            logger.info("Financial docs index created")
+        else:
+            logger.info("Financial docs index already exists")
+
+        # Get statistics for both indices
         try:
-            stats = opensearch_client.client.count(index=opensearch_client.index_name)
-            logger.info(f"OpenSearch ready: {stats['count']} documents indexed")
+            arxiv_stats = opensearch_client.client.count(index=opensearch_client.index_name)
+            financial_stats = financial_opensearch_client.client.count(index=financial_opensearch_client.index_name)
+            logger.info(f"OpenSearch ready: {arxiv_stats['count']} arXiv chunks, {financial_stats['count']} financial chunks")
         except Exception:
-            logger.info("OpenSearch index ready (stats unavailable)")
+            logger.info("OpenSearch indices ready (stats unavailable)")
     else:
         logger.warning("OpenSearch connection failed - search features will be limited")
 
@@ -73,13 +87,24 @@ async def lifespan(app: FastAPI):
     if settings.llm_provider == "openai":
         app.state.llm_client = make_openai_client()
         logger.info("Using OpenAI as LLM provider")
+    elif settings.llm_provider == "gemini":
+        app.state.llm_client = make_gemini_client()
+        logger.info("Using Gemini as LLM provider")
     else:
         app.state.llm_client = make_ollama_client()
         logger.info("Using Ollama as LLM provider")
 
     app.state.langfuse_tracer = make_langfuse_tracer()
-    app.state.cache_client = make_cache_client(settings)
-    logger.info("Services initialized: arXiv API client, PDF parser, OpenSearch, Embeddings, LLM, Langfuse, Cache")
+
+    # Initialize cache client (optional - if Redis is unavailable, continue without caching)
+    try:
+        app.state.cache_client = make_cache_client(settings)
+        logger.info("Cache client initialized successfully")
+    except Exception as e:
+        logger.warning(f"Cache client initialization failed: {e}. Continuing without caching.")
+        app.state.cache_client = None
+
+    logger.info("Services initialized: arXiv API client, PDF parser, OpenSearch, Embeddings, LLM, Langfuse")
 
     logger.info("API ready")
     yield

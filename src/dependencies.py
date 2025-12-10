@@ -11,7 +11,9 @@ from src.services.embeddings.jina_client import JinaEmbeddingsClient
 from src.services.langfuse.client import LangfuseTracer
 from src.services.ollama.client import OllamaClient
 from src.services.openai.client import OpenAIClient
+from src.services.gemini.client import GeminiClient
 from src.services.opensearch.client import OpenSearchClient
+from src.services.opensearch.financial_client import FinancialOpenSearchClient
 from src.services.pdf_parser.parser import PDFParserService
 
 
@@ -40,6 +42,11 @@ def get_db_session(database: Annotated[BaseDatabase, Depends(get_database)]) -> 
 def get_opensearch_client(request: Request) -> OpenSearchClient:
     """Get OpenSearch client from the request state."""
     return request.app.state.opensearch_client
+
+
+def get_financial_opensearch_client(request: Request) -> FinancialOpenSearchClient:
+    """Get Financial OpenSearch client from the request state."""
+    return request.app.state.financial_opensearch_client
 
 
 def get_arxiv_client(request: Request) -> ArxivClient:
@@ -72,7 +79,7 @@ def get_cache_client(request: Request) -> CacheClient | None:
     return getattr(request.app.state, "cache_client", None)
 
 
-def get_llm_client(request: Request) -> Union[OllamaClient, OpenAIClient]:
+def get_llm_client(request: Request) -> Union[OllamaClient, OpenAIClient, GeminiClient]:
     """Get LLM client from the request state (routes based on LLM_PROVIDER)."""
     return request.app.state.llm_client
 
@@ -82,10 +89,11 @@ SettingsDep = Annotated[Settings, Depends(get_settings)]
 DatabaseDep = Annotated[BaseDatabase, Depends(get_database)]
 SessionDep = Annotated[Session, Depends(get_db_session)]
 OpenSearchDep = Annotated[OpenSearchClient, Depends(get_opensearch_client)]
+FinancialOpenSearchDep = Annotated[FinancialOpenSearchClient, Depends(get_financial_opensearch_client)]
 ArxivDep = Annotated[ArxivClient, Depends(get_arxiv_client)]
 PDFParserDep = Annotated[PDFParserService, Depends(get_pdf_parser)]
 EmbeddingsDep = Annotated[JinaEmbeddingsClient, Depends(get_embeddings_service)]
 OllamaDep = Annotated[OllamaClient, Depends(get_ollama_client)]
 LangfuseDep = Annotated[LangfuseTracer, Depends(get_langfuse_tracer)]
 CacheDep = Annotated[CacheClient | None, Depends(get_cache_client)]
-LLMDep = Annotated[Union[OllamaClient, OpenAIClient], Depends(get_llm_client)]
+LLMDep = Annotated[Union[OllamaClient, OpenAIClient, GeminiClient], Depends(get_llm_client)]
