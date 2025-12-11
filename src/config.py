@@ -173,6 +173,7 @@ class Settings(BaseConfigSettings):
     postgres_max_overflow: int = 0
 
     # LLM provider selection: "ollama", "openai", or "gemini"
+    # Railway deployment test - updated 2025-12-10
     llm_provider: Literal["ollama", "openai", "gemini"] = "ollama"
 
     # Ollama configuration
