@@ -243,15 +243,55 @@ async def ask_question(
 
                 rag_tracer.end_prompt(prompt_span, final_prompt)
 
-            # Generate answer
+            # Generate answer with fallback logic
+            answer = None
+            provider_used = "primary"
+
             with rag_tracer.trace_generation(trace, request.model, final_prompt) as gen_span:
-                rag_response = await llm_client.generate_rag_answer(
-                    query=request.query,
-                    chunks=chunks,
-                    model=request.model,
-                    document_type=request.document_type
-                )
-                answer = rag_response.get("answer", "Unable to generate answer")
+                try:
+                    # Try primary LLM (Gemini or configured provider)
+                    rag_response = await llm_client.generate_rag_answer(
+                        query=request.query,
+                        chunks=chunks,
+                        model=request.model,
+                        document_type=request.document_type
+                    )
+                    answer = rag_response.get("answer", "Unable to generate answer")
+                    logger.info(f"Successfully generated answer using primary LLM provider")
+
+                except Exception as primary_error:
+                    # Primary LLM failed - try OpenAI fallback
+                    logger.warning(f"Primary LLM failed: {primary_error}. Trying OpenAI fallback...")
+
+                    try:
+                        from src.config import get_settings
+                        from src.services.openai.client import OpenAIClient
+
+                        # Create OpenAI client as fallback
+                        settings = get_settings()
+                        if settings.openai_api_key:
+                            fallback_client = OpenAIClient(settings)
+                            rag_response = await fallback_client.generate_rag_answer(
+                                query=request.query,
+                                chunks=chunks,
+                                model=settings.openai_model,
+                                document_type=request.document_type
+                            )
+                            answer = rag_response.get("answer", "Unable to generate answer")
+                            provider_used = "openai_fallback"
+                            logger.info("Successfully generated answer using OpenAI fallback")
+                        else:
+                            # No fallback available
+                            logger.error("No fallback LLM available - OpenAI API key not configured")
+                            raise primary_error
+
+                    except Exception as fallback_error:
+                        logger.error(f"Fallback LLM also failed: {fallback_error}")
+                        raise HTTPException(
+                            status_code=503,
+                            detail="LLM service temporarily unavailable. Please try again in a few moments."
+                        )
+
                 rag_tracer.end_generation(gen_span, answer, request.model)
 
             # Prepare response
