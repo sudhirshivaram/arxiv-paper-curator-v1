@@ -29,21 +29,21 @@ st.markdown("""
 <style>
     /* Reduce top padding for compact screenshots */
     .main .block-container {
-        padding-top: 2rem;
-        padding-bottom: 1rem;
+        padding-top: 0.5rem;
+        padding-bottom: 0.5rem;
     }
     .main-header {
-        font-size: 2.5rem;
+        font-size: 2rem;
         font-weight: bold;
         text-align: center;
         margin-top: 0;
-        margin-bottom: 0.5rem;
+        margin-bottom: 0.3rem;
     }
     .sub-header {
-        font-size: 1.1rem;
+        font-size: 1rem;
         text-align: center;
         color: #666;
-        margin-bottom: 1.5rem;
+        margin-bottom: 1rem;
     }
     .source-box {
         background-color: #f0f2f6;
