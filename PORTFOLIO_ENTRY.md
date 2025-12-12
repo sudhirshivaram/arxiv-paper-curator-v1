@@ -9,8 +9,10 @@
 
 ---
 
-![RAG System Screenshot](./screenshots/rag-demo.png)
-_Dual RAG system: arXiv papers + SEC financial filings with 4-tier LLM fallback_
+## 📸 Live Demo Screenshot
+
+![RAG System Demo](./screenshots/rag-demo-2.png)
+_Production RAG system answering financial compliance questions with hybrid search (BM25 + vector similarity). Features 4-tier LLM fallback (Gemini → Claude → OpenAI) for 99.9% uptime._
 
 ---
 
