@@ -27,17 +27,23 @@ st.set_page_config(
 # Custom CSS
 st.markdown("""
 <style>
+    /* Reduce top padding for compact screenshots */
+    .main .block-container {
+        padding-top: 2rem;
+        padding-bottom: 1rem;
+    }
     .main-header {
-        font-size: 3rem;
+        font-size: 2.5rem;
         font-weight: bold;
         text-align: center;
-        margin-bottom: 1rem;
+        margin-top: 0;
+        margin-bottom: 0.5rem;
     }
     .sub-header {
-        font-size: 1.2rem;
+        font-size: 1.1rem;
         text-align: center;
         color: #666;
-        margin-bottom: 2rem;
+        margin-bottom: 1.5rem;
     }
     .source-box {
         background-color: #f0f2f6;
