@@ -1,0 +1,45 @@
+{
+  "questions": [
+    "What is the attention mechanism in transformers?",
+    "How does BERT differ from GPT?",
+    "What are the main components of a neural network?",
+    "Explain the concept of transfer learning",
+    "What is the role of activation functions?"
+  ],
+  "ground_truths": [
+    "The attention mechanism allows the model to focus on different parts of the input sequence when producing each output, enabling it to capture long-range dependencies more effectively than RNNs.",
+    "BERT uses bidirectional training and is designed for understanding tasks, while GPT is unidirectional and optimized for generation. BERT uses masked language modeling while GPT uses autoregressive language modeling.",
+    "The main components are input layer, hidden layers with neurons, weights and biases, activation functions, and output layer. Networks learn by adjusting weights through backpropagation.",
+    "Transfer learning involves taking a model trained on one task and adapting it to a related task, leveraging learned features to achieve better performance with less data.",
+    "Activation functions introduce non-linearity into neural networks, allowing them to learn complex patterns. Common ones include ReLU, sigmoid, and tanh."
+  ],
+  "relevant_doc_ids": [
+    ["1706.03762", "1409.0473"],
+    ["1810.04805", "1810.04805v2"],
+    ["nature14539", "1206.5533"],
+    ["1411.1792", "1606.04671"],
+    ["1803.08375", "1502.01852"]
+  ],
+  "ground_truth_contexts": [
+    [
+      "An attention function can be described as mapping a query and a set of key-value pairs to an output. The output is computed as a weighted sum of the values.",
+      "Multi-head attention allows the model to jointly attend to information from different representation subspaces at different positions."
+    ],
+    [
+      "BERT is designed to pre-train deep bidirectional representations by jointly conditioning on both left and right context in all layers.",
+      "GPT uses a unidirectional language model for pre-training, which means it can only attend to previous tokens in the context."
+    ],
+    [
+      "Deep neural networks consist of multiple layers of interconnected neurons that process information through weighted connections.",
+      "Each layer transforms its input into a slightly more abstract representation using learned parameters."
+    ],
+    [
+      "Transfer learning leverages knowledge from pre-training on large datasets to improve performance on downstream tasks with limited data.",
+      "Fine-tuning pre-trained models has become a standard practice in NLP and computer vision."
+    ],
+    [
+      "ReLU (Rectified Linear Unit) has become the default activation function due to its simplicity and effectiveness in training deep networks.",
+      "Activation functions determine whether a neuron should be activated based on the weighted sum of its inputs."
+    ]
+  ]
+}
