@@ -42,7 +42,8 @@ class SearchHit(BaseModel):
 
     arxiv_id: str
     title: str
-    authors: Optional[str]
+    # Some search backends return authors as a list; accept both string and list forms
+    authors: Optional[list[str] | str]
     abstract: Optional[str]
     published_date: Optional[str]
     pdf_url: Optional[str]
