@@ -44,11 +44,15 @@ async def hybrid_search(
 
         hits = []
         for hit in results.get("hits", []):
+            authors = hit.get("authors")
+            if isinstance(authors, list):
+                # Normalize to string to avoid validation issues on deployments with older schemas
+                authors = ", ".join(authors)
             hits.append(
                 SearchHit(
                     arxiv_id=hit.get("arxiv_id", ""),
                     title=hit.get("title", ""),
-                    authors=hit.get("authors"),
+                    authors=authors,
                     abstract=hit.get("abstract"),
                     published_date=hit.get("published_date"),
                     pdf_url=hit.get("pdf_url"),
