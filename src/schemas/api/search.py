@@ -1,6 +1,6 @@
 from typing import List, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class SearchRequest(BaseModel):
@@ -54,6 +54,13 @@ class SearchHit(BaseModel):
     chunk_text: Optional[str] = Field(None, description="Text content of the matching chunk")
     chunk_id: Optional[str] = Field(None, description="Unique identifier of the chunk")
     section_name: Optional[str] = Field(None, description="Section name where the chunk was found")
+
+    @field_validator("authors", mode="before")
+    @classmethod
+    def normalize_authors(cls, v):
+        if isinstance(v, list):
+            return ", ".join(v)
+        return v
 
 
 class SearchResponse(BaseModel):
