@@ -19,6 +19,7 @@
 
 - **API Documentation**: https://arxiv-paper-curator-v1-production.up.railway.app/docs
 - **GitHub Repository**: https://github.com/sudhirshivaram/arxiv-paper-curator-v1
+- **Streamlit UI**: https://arxiv-paper-curator-v1-demo.streamlit.app/
 
 ## 📖 Overview
 
