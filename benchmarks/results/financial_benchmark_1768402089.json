@@ -1,0 +1,32 @@
+{
+  "benchmark_type": "financial",
+  "timestamp": "2026-01-14T09:48:09.345391",
+  "num_questions": 10,
+  "ragas_scores": {
+    "note": "RAGAS requires context text - API only returns answer + source URLs",
+    "success_rate": 1.0,
+    "successful_queries": 10,
+    "total_queries": 10
+  },
+  "retrieval_metrics": {
+    "note": "Retrieval metrics require relevant doc IDs"
+  },
+  "latency_metrics": {
+    "avg": 71.63195610046387,
+    "p50": 34.2099666595459,
+    "p95": 400.94804763793945,
+    "p99": 400.94804763793945
+  },
+  "companies_tested": [
+    "INTC",
+    "TSLA",
+    "NVDA",
+    "AMZN",
+    "META",
+    "MSFT",
+    "AAPL",
+    "NFLX",
+    "GOOGL",
+    "AMD"
+  ]
+}

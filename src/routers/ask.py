@@ -217,6 +217,7 @@ async def ask_question(
                     sources=[],
                     chunks_used=0,
                     search_mode="bm25" if not request.use_hybrid else "hybrid",
+                    context_chunks=[],
                 )
                 rag_tracer.end_request(trace, response.answer, time.time() - start_time)
                 return response
@@ -344,6 +345,7 @@ async def ask_question(
                 sources=sources,
                 chunks_used=len(chunks),
                 search_mode="bm25" if not request.use_hybrid else "hybrid",
+                context_chunks=chunks,  # Include chunk text for RAGAS evaluation
             )
 
             rag_tracer.end_request(trace, answer, time.time() - start_time)
@@ -472,6 +474,7 @@ async def ask_question_stream(
                             sources=sources,
                             chunks_used=len(chunks),
                             search_mode=search_mode,
+                            context_chunks=chunks,
                         )
                         await cache_client.store_response(request, response_to_cache)
                     except Exception as e:

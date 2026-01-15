@@ -4,11 +4,11 @@
     "failed_queries": 0
   },
   "ragas_scores": {
-    "faithfulness": 0.0,
-    "answer_relevancy": 0.0,
-    "context_precision": 0.0,
-    "context_recall": 0.0,
-    "ragas_score": 0.0
+    "faithfulness": 1.0,
+    "answer_relevancy": 0.5779847123419414,
+    "context_precision": 0.9999999999549999,
+    "context_recall": 0.925,
+    "ragas_score": 0.8757461780742353
   },
   "ranking_metrics": {
     "mrr": 1.0,
@@ -18,10 +18,10 @@
     "hit_rate@10": 1.0
   },
   "latency_metrics": {
-    "avg_ms": 1575.2376079559326,
-    "p50_ms": 1940.1462078094482,
-    "p95_ms": 3071.2966918945312,
-    "p99_ms": 3071.2966918945312
+    "avg_ms": 2536.970591545105,
+    "p50_ms": 2708.1520557403564,
+    "p95_ms": 5889.480352401733,
+    "p99_ms": 5889.480352401733
   },
   "cost_metrics": {
     "total_tokens": 19969,

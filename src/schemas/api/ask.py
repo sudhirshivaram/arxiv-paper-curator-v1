@@ -56,6 +56,7 @@ class AskResponse(BaseModel):
     sources: List[str] = Field(..., description="PDF URLs of source papers")
     chunks_used: int = Field(..., description="Number of chunks used for generation")
     search_mode: str = Field(..., description="Search mode used: bm25 or hybrid")
+    context_chunks: List[str] = Field(default=[], description="Text content of retrieved chunks (for RAGAS evaluation)")
 
     class Config:
         json_schema_extra = {
@@ -65,5 +66,6 @@ class AskResponse(BaseModel):
                 "sources": ["https://arxiv.org/pdf/1706.03762.pdf", "https://arxiv.org/pdf/1810.04805.pdf"],
                 "chunks_used": 3,
                 "search_mode": "hybrid",
+                "context_chunks": ["Chunk 1 text...", "Chunk 2 text..."],
             }
         }

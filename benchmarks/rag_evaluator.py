@@ -248,63 +248,28 @@ class RAGEvaluator:
                 embeddings=embeddings,
             )
 
-            # Debug: Log what RAGAS actually returns
-            logger.info(f"RAGAS result type: {type(result)}")
-            logger.info(f"RAGAS result dir: {[x for x in dir(result) if not x.startswith('_')]}")
-
-            # Handle different RAGAS return formats
-            result_dict = {}
-
-            # Case 1: EvaluationResult object (RAGAS v0.2+) with to_pandas() method
-            if hasattr(result, 'to_pandas'):
-                # Convert to pandas DataFrame
-                df = result.to_pandas()
-                logger.info(f"DataFrame shape: {df.shape}, columns: {list(df.columns)}")
-                # Average each metric across all samples
-                for key in ['faithfulness', 'answer_relevancy', 'context_precision', 'context_recall']:
-                    if key in df.columns:
-                        values = df[key].dropna()  # Remove NaN values
-                        result_dict[key] = float(values.mean()) if len(values) > 0 else 0.0
-                        logger.info(f"Extracted {key}: {result_dict[key]}")
-            # Case 2: Has 'scores' DataFrame attribute
-            elif hasattr(result, 'scores') and hasattr(result.scores, 'to_dict'):
-                df_dict = result.scores.to_dict()
-                logger.info(f"DataFrame columns: {list(df_dict.keys())}")
-                for key in ['faithfulness', 'answer_relevancy', 'context_precision', 'context_recall']:
-                    if key in df_dict:
-                        values = [v for v in df_dict[key].values() if v is not None]
-                        result_dict[key] = sum(values) / len(values) if values else 0.0
-            # Case 3: Direct DataFrame with to_dict
-            elif hasattr(result, 'to_dict'):
-                df_dict = result.to_dict()
-                for key in ['faithfulness', 'answer_relevancy', 'context_precision', 'context_recall']:
-                    if key in df_dict:
-                        values = [v for v in df_dict[key].values() if v is not None]
-                        result_dict[key] = sum(values) / len(values) if values else 0.0
-            # Case 4: Dict
+            # ragas >=0.1 may return an EvaluationResult object without .get
+            if hasattr(result, "scores"):
+                result_dict = result.scores
             elif isinstance(result, dict):
                 result_dict = result
+            elif isinstance(result, list) and result and isinstance(result[0], dict):
+                result_dict = result[0]
             else:
-                logger.warning(f"Unexpected RAGAS result format: {type(result)}")
-                result_dict = {}
-
-            logger.info(f"Final result_dict: {result_dict}")
-
-            # Safely extract scores with defaults (use _score suffix to avoid conflict with imported metrics)
-            faithfulness_score = float(result_dict.get("faithfulness", 0.0)) if result_dict else 0.0
-            relevancy_score = float(result_dict.get("answer_relevancy", 0.0)) if result_dict else 0.0
-            precision_score = float(result_dict.get("context_precision", 0.0)) if result_dict else 0.0
-            recall_score = float(result_dict.get("context_recall", 0.0)) if result_dict else 0.0
-
-            # Calculate overall RAGAS score as average of all metrics
-            overall_score = (faithfulness_score + relevancy_score + precision_score + recall_score) / 4.0
+                # Best effort: try __getitem__ for known keys
+                result_dict = {
+                    "faithfulness": result["faithfulness"],
+                    "answer_relevancy": result["answer_relevancy"],
+                    "context_precision": result["context_precision"],
+                    "context_recall": result["context_recall"],
+                }
 
             return {
-                "faithfulness": faithfulness_score,
-                "answer_relevancy": relevancy_score,
-                "context_precision": precision_score,
-                "context_recall": recall_score,
-                "ragas_score": overall_score,
+                "faithfulness": result_dict.get("faithfulness", 0.0),
+                "answer_relevancy": result_dict.get("answer_relevancy", 0.0),
+                "context_precision": result_dict.get("context_precision", 0.0),
+                "context_recall": result_dict.get("context_recall", 0.0),
+                "ragas_score": result_dict.get("ragas_score", 0.0),  # Overall score
             }
         except Exception as e:
             logger.error(f"RAGAS evaluation failed: {e}")

@@ -42,8 +42,8 @@ class SearchHit(BaseModel):
 
     arxiv_id: str
     title: str
-    # Authors stored as string after normalization (validator handles list→string conversion)
-    authors: Optional[str]
+    # Some search backends return authors as a list; accept both string and list forms
+    authors: Optional[list[str] | str]
     abstract: Optional[str]
     published_date: Optional[str]
     pdf_url: Optional[str]
@@ -58,13 +58,9 @@ class SearchHit(BaseModel):
     @field_validator("authors", mode="before")
     @classmethod
     def normalize_authors(cls, v):
-        """Normalize authors to string format - handles both list and string inputs from OpenSearch"""
-        if v is None:
-            return None
         if isinstance(v, list):
-            # Join list of authors into comma-separated string
-            return ", ".join(str(author) for author in v if author)
-        return str(v) if v else None
+            return ", ".join(v)
+        return v
 
 
 class SearchResponse(BaseModel):
