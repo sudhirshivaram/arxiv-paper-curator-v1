@@ -1,8 +1,8 @@
 from fastapi import APIRouter
 from sqlalchemy import text
 
-from ..dependencies import DatabaseDep, OpenSearchDep, SettingsDep
-from ..schemas.api.health import HealthResponse, ServiceStatus
+from ..dependencies import DatabaseDep, OpenSearchDep, FinancialOpenSearchDep, SettingsDep
+from ..schemas.api.health import HealthResponse, ServiceStatus, StatsResponse, IndexStats
 from ..services.ollama import OllamaClient
 
 router = APIRouter()
@@ -70,4 +70,36 @@ async def health_check(settings: SettingsDep, database: DatabaseDep, opensearch_
         environment=settings.environment,
         service_name=settings.service_name,
         services=services,
+    )
+
+
+@router.get("/stats", response_model=StatsResponse, tags=["Health"])
+async def get_stats(
+    opensearch_client: OpenSearchDep,
+    financial_opensearch_client: FinancialOpenSearchDep
+) -> StatsResponse:
+    """Get document statistics for all indexes.
+
+    Returns counts for arXiv papers and financial documents.
+    """
+    # Get arXiv stats
+    arxiv_stats = opensearch_client.get_index_stats()
+    arxiv = IndexStats(
+        documents=arxiv_stats.get("document_count", 0),
+        index_name=arxiv_stats.get("index_name", "arxiv-papers-chunks"),
+        size_mb=arxiv_stats.get("size_mb")
+    )
+
+    # Get financial stats
+    financial_stats = financial_opensearch_client.get_index_stats()
+    financial = IndexStats(
+        documents=financial_stats.get("document_count", 0),
+        index_name=financial_stats.get("index_name", "financial-docs-chunks"),
+        size_mb=financial_stats.get("size_mb")
+    )
+
+    return StatsResponse(
+        arxiv=arxiv,
+        financial=financial,
+        total_documents=arxiv.documents + financial.documents
     )

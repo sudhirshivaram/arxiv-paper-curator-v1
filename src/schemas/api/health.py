@@ -10,6 +10,31 @@ class ServiceStatus(BaseModel):
     message: Optional[str] = Field(None, description="Status message", example="Connected successfully")
 
 
+class IndexStats(BaseModel):
+    """Statistics for a single index."""
+
+    documents: int = Field(..., description="Number of documents/chunks in index")
+    index_name: str = Field(..., description="Name of the OpenSearch index")
+    size_mb: Optional[float] = Field(None, description="Index size in MB")
+
+
+class StatsResponse(BaseModel):
+    """Document statistics response model."""
+
+    arxiv: IndexStats = Field(..., description="arXiv papers index stats")
+    financial: IndexStats = Field(..., description="Financial documents index stats")
+    total_documents: int = Field(..., description="Total documents across all indexes")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "arxiv": {"documents": 200, "index_name": "arxiv-papers-chunks", "size_mb": 1.5},
+                "financial": {"documents": 11, "index_name": "financial-docs-chunks", "size_mb": 0.2},
+                "total_documents": 211
+            }
+        }
+
+
 class HealthResponse(BaseModel):
     """Health check response model."""
 
